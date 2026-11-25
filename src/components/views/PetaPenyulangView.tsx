@@ -32,8 +32,9 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react';
-import { MapLayerItem, MasterUnitPLN, Penyulang } from '../../types';
+import { MapLayerItem, MasterUnitPLN, Penyulang, User } from '../../types';
 import { getDynamicUnitList } from '../../utils/unitConfig';
+import { isOwnerUser } from '../../utils/permissions';
 import { CustomDropdown } from '../common/CustomDropdown';
 import {
   IconGarduTrafo,
@@ -47,6 +48,7 @@ import {
 } from '../common/ElectricIcons';
 
 interface PetaPenyulangViewProps {
+  currentUser?: User | null;
   layers: MapLayerItem[];
   onToggleLayer: (id: string) => void;
   onDeleteLayer: (id: string) => void;
@@ -59,6 +61,7 @@ interface PetaPenyulangViewProps {
 }
 
 export const PetaPenyulangView: React.FC<PetaPenyulangViewProps> = ({
+  currentUser,
   layers,
   onToggleLayer,
   onDeleteLayer,
@@ -121,7 +124,7 @@ export const PetaPenyulangView: React.FC<PetaPenyulangViewProps> = ({
     });
     return Array.from(optionsMap.values());
   }, [masterUnits]);
-  const [mapStyle, setMapStyle] = useState<'dark' | 'satellite' | 'street'>('dark');
+  const [mapStyle, setMapStyle] = useState<'satellite' | 'street'>('satellite');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fileImporting, setFileImporting] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -325,10 +328,10 @@ export const PetaPenyulangView: React.FC<PetaPenyulangViewProps> = ({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    const tileUrl = getTileUrl('dark');
+    const tileUrl = getTileUrl('satellite');
     const tileLayer = L.tileLayer(tileUrl, {
       maxZoom: 19,
-      attribution: '&copy; Leaflet | OpenStreetMap contributors & CARTO'
+      attribution: '&copy; Leaflet | OpenStreetMap contributors & Esri'
     }).addTo(map);
 
     tileLayerRef.current = tileLayer;
@@ -342,15 +345,13 @@ export const PetaPenyulangView: React.FC<PetaPenyulangViewProps> = ({
     };
   }, []);
 
-  const getTileUrl = (style: 'dark' | 'satellite' | 'street') => {
+  const getTileUrl = (style: 'satellite' | 'street') => {
     switch (style) {
-      case 'satellite':
-        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
       case 'street':
         return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      case 'dark':
+      case 'satellite':
       default:
-        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
     }
   };
 
@@ -1116,27 +1117,34 @@ const createLeafletDivIcon = (iconType: string | undefined, isCustomNode: boolea
 
           {/* Search & Category Filter Box */}
           <div className="space-y-2">
-            {/* Filter ULP Select Custom Dropdown - Opens Downwards */}
-            <CustomDropdown
-              options={[
-                { value: 'SEMUA', label: '🌐 Filter ULP: Semua Unit' },
-                ...ulpOptions.map((u) => ({
-                  value: u.namaUnit,
-                  label: u.namaUnit,
-                  subLabel: `Kode: ${u.kodeUnit}`,
-                  badge: u.kodeUnit
-                }))
-              ]}
-              value={selectedUlp}
-              onChange={handleUlpChange}
-              icon={<Building2 className="w-3.5 h-3.5 text-amber-500" />}
-              searchable={true}
-              searchPlaceholder="Cari ULP..."
-              placeholder="Filter ULP: Semua Unit"
-              variant="light"
-              className="w-full"
-              buttonClassName="w-full bg-slate-50 border-slate-200 text-slate-800 py-1.5"
-            />
+            {/* Filter ULP Select Custom Dropdown - Locked for non-owner */}
+            {isOwnerUser(currentUser) ? (
+              <CustomDropdown
+                options={[
+                  { value: 'SEMUA', label: '🌐 Filter ULP: Semua Unit' },
+                  ...ulpOptions.map((u) => ({
+                    value: u.namaUnit,
+                    label: u.namaUnit,
+                    subLabel: `Kode: ${u.kodeUnit}`,
+                    badge: u.kodeUnit
+                  }))
+                ]}
+                value={selectedUlp}
+                onChange={handleUlpChange}
+                icon={<Building2 className="w-3.5 h-3.5 text-amber-500" />}
+                searchable={true}
+                searchPlaceholder="Cari ULP..."
+                placeholder="Filter ULP: Semua Unit"
+                variant="light"
+                className="w-full"
+                buttonClassName="w-full bg-slate-50 border-slate-200 text-slate-800 py-1.5"
+              />
+            ) : (
+              <div className="flex items-center gap-2 p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-800">
+                <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                <span>🔒 ULP: {currentUser?.unit || 'ULP Baguala'}</span>
+              </div>
+            )}
 
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1365,16 +1373,6 @@ const createLeafletDivIcon = (iconType: string | undefined, isCustomNode: boolea
         <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center gap-2">
           {/* Map Base Style Selector */}
           <div className="flex items-center gap-1 p-1 bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl shadow-md">
-            <button
-              onClick={() => setMapStyle('dark')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                mapStyle === 'dark'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Moon className="w-3.5 h-3.5" /> Dark
-            </button>
             <button
               onClick={() => setMapStyle('satellite')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${

@@ -15,7 +15,14 @@ import {
   Trash2,
   CheckCircle2,
   Clock,
-  X
+  X,
+  Maximize2,
+  Minimize2,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JadwalInspeksiRow } from '../../types';
@@ -33,9 +40,9 @@ const MOCK_DATA: JadwalInspeksiRow[] = [
     kms: 12.4,
     tahun: 2026,
     schedule: {
-      '2026-01-05': { type: 'INSPEKSI', isRealized: true },
-      '2026-01-15': { type: 'ROW', isRealized: false },
-      '2026-02-10': { type: 'BOTH', isRealized: true },
+      '2026-01-05': { type: 'INSPEKSI', isRealized: true, section: 'Sec 1-4', jumlahGawang: 12 },
+      '2026-01-15': { type: 'ROW', isRealized: false, section: 'Span 10-25', jumlahGawang: 15 },
+      '2026-02-10': { type: 'BOTH', isRealized: true, section: 'Main Trunk', jumlahGawang: 20 },
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -51,6 +58,50 @@ const MOCK_DATA: JadwalInspeksiRow[] = [
       '2026-01-10': { type: 'INSPEKSI', isRealized: false },
       '2026-01-20': { type: 'ROW', isRealized: true },
       '2026-03-05': { type: 'INSPEKSI', isRealized: true },
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '3',
+    ulp: 'ULP Ambon Kota',
+    kodeUlp: '54130',
+    penyulang: 'PASSO',
+    kms: 28.6,
+    tahun: 2026,
+    schedule: {
+      '2026-01-08': { type: 'BOTH', isRealized: true, section: 'Laha - Hitu' },
+      '2026-01-22': { type: 'INSPEKSI', isRealized: true, section: 'Passo Lama' },
+      '2026-02-14': { type: 'ROW', isRealized: false },
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '4',
+    ulp: 'ULP Sirimau',
+    kodeUlp: '54140',
+    penyulang: 'SIRIMAU EKSPRES',
+    kms: 34.2,
+    tahun: 2026,
+    schedule: {
+      '2026-01-12': { type: 'ROW', isRealized: true },
+      '2026-02-04': { type: 'INSPEKSI', isRealized: true },
+      '2026-02-25': { type: 'BOTH', isRealized: false },
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '5',
+    ulp: 'ULP Lease',
+    kodeUlp: '54150',
+    penyulang: 'SAPARUA',
+    kms: 42.1,
+    tahun: 2026,
+    schedule: {
+      '2026-01-18': { type: 'INSPEKSI', isRealized: true },
+      '2026-03-02': { type: 'ROW', isRealized: false },
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -99,6 +150,61 @@ export const JadwalInspeksiRowView: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState('2026');
   const [viewMonth, setViewMonth] = useState(0); // 0 = JAN, 1 = FEB...
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [isCompact, setIsCompact] = useState<boolean>(false);
+
+  // Drag and Drop States for Row / Section Priorities
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [reorderNotification, setReorderNotification] = useState<string | null>(null);
+
+  // Function to move row / priority order
+  const moveRow = (fromIndex: number, toIndex: number, list: JadwalInspeksiRow[]) => {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length || fromIndex === toIndex) return;
+
+    const sourceItem = list[fromIndex];
+    const targetItem = list[toIndex];
+
+    const realFromIdx = data.findIndex(d => d.id === sourceItem.id);
+    const realToIdx = data.findIndex(d => d.id === targetItem.id);
+
+    if (realFromIdx !== -1 && realToIdx !== -1) {
+      const newData = [...data];
+      const [moved] = newData.splice(realFromIdx, 1);
+      newData.splice(realToIdx, 0, moved);
+      setData(newData);
+
+      setReorderNotification(`Urutan prioritas "${moved.penyulang}" berhasil dipindahkan ke Posisi #${toIndex + 1}`);
+      setTimeout(() => setReorderNotification(null), 3500);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number, list: JadwalInspeksiRow[]) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== targetIndex) {
+      moveRow(draggedIndex, targetIndex, list);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
   
   // Helper to check if a day is "red" (weekend or holiday)
   const getRedDayInfo = (monthIdx: number, day: number) => {
@@ -124,6 +230,16 @@ export const JadwalInspeksiRowView: React.FC = () => {
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{rowId: string, date: string} | null>(null);
 
+  // Helper to calculate row completion progress
+  const getRowProgress = (item: JadwalInspeksiRow) => {
+    const scheduleValues = Object.values(item.schedule || {});
+    const total = scheduleValues.length;
+    if (total === 0) return { total: 0, realized: 0, percentage: 0 };
+    const realized = scheduleValues.filter((s: any) => Boolean(s?.isRealized)).length;
+    const percentage = Math.round((realized / total) * 100);
+    return { total, realized, percentage };
+  };
+
   // Filtering logic
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -134,6 +250,19 @@ export const JadwalInspeksiRowView: React.FC = () => {
       return matchUnit && matchSearch && matchYear;
     });
   }, [data, searchTerm, filterUnit, selectedYear]);
+
+  // Overall statistics for footer
+  const overallStats = useMemo(() => {
+    let totalSchedules = 0;
+    let totalRealized = 0;
+    filteredData.forEach(item => {
+      const values = Object.values(item.schedule || {});
+      totalSchedules += values.length;
+      totalRealized += values.filter((s: any) => Boolean(s?.isRealized)).length;
+    });
+    const percentage = totalSchedules > 0 ? Math.round((totalRealized / totalSchedules) * 100) : 0;
+    return { totalSchedules, totalRealized, percentage };
+  }, [filteredData]);
 
   const handleSaveData = (newData: Partial<JadwalInspeksiRow>) => {
     if (editItem) {
@@ -204,16 +333,17 @@ export const JadwalInspeksiRowView: React.FC = () => {
 
     let bgColor = '';
     let icon = null;
+    const iconSize = isCompact ? "w-1.5 h-1.5" : "w-2 h-2";
 
     if (schedule.type === 'INSPEKSI') {
       bgColor = schedule.isRealized ? 'bg-amber-500' : 'bg-amber-500/40';
-      icon = <SearchIcon className="w-2 h-2 text-white" />;
+      icon = <SearchIcon className={`${iconSize} text-white`} />;
     } else if (schedule.type === 'ROW') {
       bgColor = schedule.isRealized ? 'bg-emerald-500' : 'bg-emerald-500/40';
-      icon = <Trees className="w-2 h-2 text-white" />;
+      icon = <Trees className={`${iconSize} text-white`} />;
     } else if (schedule.type === 'BOTH') {
       bgColor = schedule.isRealized ? 'bg-blue-500' : 'bg-blue-500/40';
-      icon = <Zap className="w-2 h-2 text-white" />;
+      icon = <Zap className={`${iconSize} text-white`} />;
     }
 
     return (
@@ -243,6 +373,25 @@ export const JadwalInspeksiRowView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Toggle Mode Compact Button */}
+          <button 
+            onClick={() => setIsCompact(!isCompact)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+              isCompact 
+                ? 'bg-amber-400 text-teal-950 border-amber-300 font-black shadow-amber-900/30 ring-2 ring-amber-400/40' 
+                : 'bg-teal-900/40 text-teal-300 border-teal-500/30 hover:bg-teal-800/60'
+            }`}
+            title={isCompact ? 'Kembali ke Tampilan Normal' : 'Tampilkan Lebih Banyak Data per Layar (Mode Ringkas)'}
+          >
+            {isCompact ? <Maximize2 className="w-4 h-4 text-teal-950" /> : <Minimize2 className="w-4 h-4 text-teal-300" />}
+            <span>{isCompact ? 'MODE RINGKAS' : 'MODE RINGKAS'}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black uppercase ${
+              isCompact ? 'bg-teal-950 text-amber-300' : 'bg-teal-800 text-teal-400'
+            }`}>
+              {isCompact ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
           <button 
             onClick={() => {
               setEditItem(null);
@@ -291,6 +440,11 @@ export const JadwalInspeksiRowView: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-teal-900/40 border border-teal-500/30 rounded-xl py-2 pl-9 pr-4 text-xs font-bold text-white placeholder-teal-600 focus:outline-none focus:border-amber-400/50 transition-all"
             />
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-400/10 border border-amber-400/30 rounded-xl text-amber-300 text-xs font-bold">
+            <GripVertical className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            <span className="text-[11px]">Tarik handle <strong>(⋮⋮)</strong> / gunakan panah untuk mengatur ulang prioritas gawang & section.</span>
           </div>
         </div>
 
@@ -361,15 +515,21 @@ export const JadwalInspeksiRowView: React.FC = () => {
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#022e2a] text-white">
-                <th rowSpan={2} className="px-4 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50 sticky left-0 z-20 bg-[#022e2a]">NO</th>
-                <th rowSpan={2} className="px-4 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50 sticky left-12 z-20 bg-[#022e2a] min-w-[120px]">ULP</th>
-                <th rowSpan={2} className="px-4 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50 min-w-[100px]">KODE ULP</th>
-                <th rowSpan={2} className="px-4 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50 min-w-[150px]">PENYULANG</th>
-                <th rowSpan={2} className="px-3 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50">KMS</th>
-                <th rowSpan={2} className="px-4 py-3 text-xs font-black uppercase tracking-wider border-r border-teal-800/50 min-w-[100px]">AKSI</th>
+                <th rowSpan={2} className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 sticky left-0 z-20 bg-[#022e2a] min-w-[95px]`}>
+                  <div className="flex items-center justify-center gap-1" title="Tarik handle (⋮⋮) atau gunakan tombol panah untuk mengatur prioritas pemeliharaan gawang/section">
+                    <GripVertical className="w-3.5 h-3.5 text-amber-400" />
+                    <span>PRIORITAS</span>
+                  </div>
+                </th>
+                <th rowSpan={2} className={`px-3 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 sticky ${isCompact ? 'left-[80px]' : 'left-[95px]'} z-20 bg-[#022e2a] ${isCompact ? 'min-w-[100px]' : 'min-w-[120px]'}`}>ULP</th>
+                <th rowSpan={2} className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 ${isCompact ? 'min-w-[80px]' : 'min-w-[100px]'}`}>KODE ULP</th>
+                <th rowSpan={2} className={`px-3 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 ${isCompact ? 'min-w-[120px]' : 'min-w-[150px]'}`}>PENYULANG</th>
+                <th rowSpan={2} className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50`}>KMS</th>
+                <th rowSpan={2} className={`px-3 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 ${isCompact ? 'min-w-[100px]' : 'min-w-[140px]'}`}>PROGRESS</th>
+                <th rowSpan={2} className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-xs'} font-black uppercase tracking-wider border-r border-teal-800/50 ${isCompact ? 'min-w-[70px]' : 'min-w-[90px]'}`}>AKSI</th>
                 
                 {/* Single Month View for clarity on all screens, but with enough space for days */}
-                <th colSpan={MONTHS[viewMonth].days} className={`px-4 py-2 text-[10px] font-black border-b border-teal-800/50 ${MONTHS[viewMonth].color} text-teal-100 uppercase tracking-[0.2em]`}>
+                <th colSpan={MONTHS[viewMonth].days} className={`px-3 ${isCompact ? 'py-1 text-[9px]' : 'py-2 text-[10px]'} font-black border-b border-teal-800/50 ${MONTHS[viewMonth].color} text-teal-100 uppercase tracking-[0.2em]`}>
                   {MONTHS[viewMonth].name} {selectedYear}
                 </th>
               </tr>
@@ -384,14 +544,14 @@ export const JadwalInspeksiRowView: React.FC = () => {
                   return (
                     <th 
                       key={i} 
-                      className={`w-8 min-w-[40px] py-2 text-[8px] font-black border-r border-teal-800/30 leading-tight ${
+                      className={`${isCompact ? 'w-6 min-w-[26px] py-0.5 text-[7px]' : 'w-8 min-w-[40px] py-2 text-[8px]'} font-black border-r border-teal-800/30 leading-tight ${
                         isRed ? 'text-rose-400 bg-rose-900/30' : ''
                       }`}
                       title={holidayName}
                     >
                       <div className="flex flex-col items-center">
                         <span className="opacity-50">{dayName}</span>
-                        <span className="text-[10px]">{dayNum}</span>
+                        <span className={isCompact ? 'text-[9px]' : 'text-[10px]'}>{dayNum}</span>
                       </div>
                     </th>
                   );
@@ -399,45 +559,139 @@ export const JadwalInspeksiRowView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((item, idx) => (
-                <tr 
-                  key={item.id} 
-                  onClick={() => setSelectedRowId(selectedRowId === item.id ? null : item.id)}
-                  className={`border-b border-teal-500/10 hover:bg-teal-900/20 transition-all group cursor-pointer ${
-                    selectedRowId === item.id ? 'bg-teal-800/40 ring-1 ring-inset ring-teal-500/30 shadow-lg' : ''
-                  }`}
-                >
-                  <td className={`px-4 py-3 text-[11px] font-black text-teal-500 border-r border-teal-800/30 sticky left-0 z-10 transition-colors group-hover:bg-[#022e2a] ${
-                    selectedRowId === item.id ? 'bg-teal-700/50 text-white' : 'bg-[#011a18]'
-                  }`}>
-                    {idx + 1}
-                  </td>
-                  <td className={`px-4 py-3 text-[11px] font-bold text-white border-r border-teal-800/30 sticky left-12 z-10 transition-colors group-hover:bg-[#022e2a] ${
-                    selectedRowId === item.id ? 'bg-teal-700/50 text-amber-300' : 'bg-[#011a18]'
-                  }`}>
-                    {item.ulp}
-                  </td>
-                  <td className="px-4 py-3 text-[11px] font-medium text-teal-400 border-r border-teal-800/30 text-center">
+              {filteredData.map((item, idx) => {
+                const isDragging = draggedIndex === idx;
+                const isDragOver = dragOverIndex === idx;
+
+                return (
+                  <tr 
+                    key={item.id} 
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={(e) => handleDrop(e, idx, filteredData)}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => setSelectedRowId(selectedRowId === item.id ? null : item.id)}
+                    className={`border-b border-teal-500/10 hover:bg-teal-900/30 transition-all group cursor-pointer ${
+                      selectedRowId === item.id ? 'bg-teal-800/40 ring-1 ring-inset ring-teal-500/30 shadow-lg' : ''
+                    } ${
+                      isDragging ? 'opacity-30 border-2 border-dashed border-amber-400 bg-teal-950' : ''
+                    } ${
+                      isDragOver ? 'bg-amber-500/20 border-y-2 border-amber-400 ring-2 ring-amber-400/50 shadow-2xl' : ''
+                    }`}
+                  >
+                    <td className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-2 text-[11px]'} font-black border-r border-teal-800/30 sticky left-0 z-10 transition-colors group-hover:bg-[#022e2a] ${
+                      selectedRowId === item.id ? 'bg-teal-700/50 text-white' : 'bg-[#011a18]'
+                    }`}>
+                      <div className="flex items-center justify-between gap-1">
+                        <div 
+                          className="p-1 rounded cursor-grab active:cursor-grabbing hover:bg-teal-800/60 text-teal-400 hover:text-amber-400 transition-colors"
+                          title="Tarik untuk mengatur urutan prioritas pemeliharaan gawang & section"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
+                        <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${
+                          idx === 0 ? 'bg-amber-400 text-teal-950 font-black shadow-sm' :
+                          idx === 1 ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' :
+                          'bg-teal-900/50 text-teal-300 border border-teal-800'
+                        }`}>
+                          #{idx + 1}
+                        </span>
+
+                        <div className="flex flex-col gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button
+                            disabled={idx === 0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveRow(idx, idx - 1, filteredData);
+                            }}
+                            className="p-0.5 hover:bg-teal-700/60 rounded text-teal-300 disabled:opacity-20 hover:text-amber-300"
+                            title="Naikkan Prioritas"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            disabled={idx === filteredData.length - 1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveRow(idx, idx + 1, filteredData);
+                            }}
+                            className="p-0.5 hover:bg-teal-700/60 rounded text-teal-300 disabled:opacity-20 hover:text-amber-300"
+                            title="Turunkan Prioritas"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`px-3 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-[11px]'} font-bold text-white border-r border-teal-800/30 sticky ${isCompact ? 'left-[80px]' : 'left-[95px]'} z-10 transition-colors group-hover:bg-[#022e2a] ${
+                      selectedRowId === item.id ? 'bg-teal-700/50 text-amber-300' : 'bg-[#011a18]'
+                    }`}>
+                      {item.ulp}
+                    </td>
+                  <td className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-[11px]'} font-medium text-teal-400 border-r border-teal-800/30 text-center`}>
                     {item.kodeUlp}
                   </td>
-                  <td className="px-4 py-3 text-[11px] font-medium text-teal-100 border-r border-teal-800/30">
+                  <td className={`px-3 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-[11px]'} font-medium text-teal-100 border-r border-teal-800/30`}>
                     {item.penyulang}
                   </td>
-                  <td className="px-3 py-3 text-[11px] font-bold text-teal-300 border-r border-teal-800/30 text-center">
+                  <td className={`px-2 ${isCompact ? 'py-1 text-[10px]' : 'py-3 text-[11px]'} font-bold text-teal-300 border-r border-teal-800/30 text-center`}>
                     {item.kms}
                   </td>
-                  <td className="px-4 py-3 text-[11px] font-bold border-r border-teal-800/30 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                  {/* Progress Bar Column */}
+                  <td className={`px-2 ${isCompact ? 'py-0.5' : 'py-2.5'} border-r border-teal-800/30`}>
+                    {(() => {
+                      const { total, realized, percentage } = getRowProgress(item);
+                      let barGradient = 'from-slate-600 to-slate-500';
+                      let badgeColor = 'text-slate-400 bg-slate-800/60 border-slate-700/50';
+
+                      if (total > 0) {
+                        if (percentage === 100) {
+                          barGradient = 'from-emerald-500 via-teal-400 to-emerald-300';
+                          badgeColor = 'text-emerald-300 bg-emerald-500/20 border-emerald-500/40 shadow-sm shadow-emerald-950';
+                        } else if (percentage >= 50) {
+                          barGradient = 'from-amber-500 to-amber-300';
+                          badgeColor = 'text-amber-300 bg-amber-500/20 border-amber-500/40';
+                        } else if (percentage > 0) {
+                          barGradient = 'from-sky-500 to-teal-400';
+                          badgeColor = 'text-sky-300 bg-sky-500/20 border-sky-500/40';
+                        }
+                      }
+
+                      return (
+                        <div className={`flex flex-col ${isCompact ? 'gap-0.5 min-w-[90px]' : 'gap-1.5 min-w-[120px]'}`}>
+                          <div className={`flex items-center justify-between ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
+                            <span className={`rounded-md border font-mono font-black tracking-tight ${badgeColor} ${isCompact ? 'px-1 py-0 text-[8px]' : 'px-1.5 py-0.5 text-[9px]'}`}>
+                              {percentage}%
+                            </span>
+                            <span className={`${isCompact ? 'text-[9px]' : 'text-[10px]'} text-teal-300/80 font-bold`}>
+                              {realized}/{total} <span className="opacity-60 font-normal">Selesai</span>
+                            </span>
+                          </div>
+                          <div className={`w-full ${isCompact ? 'h-1.5' : 'h-2'} bg-teal-950/90 rounded-full overflow-hidden border border-teal-800/40 p-[1px] shadow-inner`}>
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${barGradient}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td className={`px-2 ${isCompact ? 'py-0.5' : 'py-3'} text-[11px] font-bold border-r border-teal-800/30 text-center`}>
+                    <div className="flex items-center justify-center gap-1.5">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditItem(item);
                           setIsInputModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg bg-teal-900/40 hover:bg-amber-500 hover:text-teal-950 text-amber-500 transition-all"
+                        className={`${isCompact ? 'p-1' : 'p-1.5'} rounded-lg bg-teal-900/40 hover:bg-amber-500 hover:text-teal-950 text-amber-500 transition-all`}
                         title="Edit Data"
                       >
-                        <Edit className="w-3.5 h-3.5" />
+                        <Edit className={isCompact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
                       </button>
                       <button 
                         onClick={(e) => {
@@ -446,10 +700,10 @@ export const JadwalInspeksiRowView: React.FC = () => {
                             setData(prev => prev.filter(i => i.id !== item.id));
                           }
                         }}
-                        className="p-1.5 rounded-lg bg-teal-900/40 hover:bg-rose-500 hover:text-white text-rose-500 transition-all"
+                        className={`${isCompact ? 'p-1' : 'p-1.5'} rounded-lg bg-teal-900/40 hover:bg-rose-500 hover:text-white text-rose-500 transition-all`}
                         title="Hapus Data"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className={isCompact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
                       </button>
                     </div>
                   </td>
@@ -461,7 +715,7 @@ export const JadwalInspeksiRowView: React.FC = () => {
                     return (
                       <td 
                         key={i} 
-                        className={`w-8 h-10 border-r border-teal-800/20 p-0 relative ${isRed ? 'bg-rose-950/20' : ''}`}
+                        className={`${isCompact ? 'w-6 h-6' : 'w-8 h-10'} border-r border-teal-800/20 p-0 relative ${isRed ? 'bg-rose-950/20' : ''}`}
                         title={holidayName}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -473,22 +727,23 @@ export const JadwalInspeksiRowView: React.FC = () => {
                     );
                   })}
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
           </table>
         </div>
       </div>
 
       {/* Footer Info */}
-      <div className="flex items-center justify-between text-[10px] font-bold text-teal-600 uppercase tracking-widest px-2">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between text-[10px] font-bold text-teal-600 uppercase tracking-widest px-2 gap-2">
+        <div className="flex items-center gap-5">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Selesai: 45%</span>
+            <span>Total Realisasi: <strong className="text-emerald-300 font-mono">{overallStats.percentage}%</strong> ({overallStats.totalRealized}/{overallStats.totalSchedules} Jadwal)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-amber-500" />
-            <span>On-Progress: 12%</span>
+            <span>Belum Realisasi: <strong className="text-amber-300 font-mono">{overallStats.totalSchedules - overallStats.totalRealized}</strong> Jadwal</span>
           </div>
         </div>
         <div>Total Penyulang: {filteredData.length} Data</div>
